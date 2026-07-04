@@ -1,20 +1,20 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Waterway Risk Checker — Ghana</title>
+  <title>Waterway Risk Screening — Ghana</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Outfit:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
 
-  <!-- Shared icon, referenced by the legend and by JS-rendered result cards -->
+  <!-- Shared SVG Icons -->
   <svg style="display:none;" aria-hidden="true">
     <symbol id="icon-rings" viewBox="0 0 24 24">
       <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.35"/>
@@ -25,22 +25,36 @@
 
   <header class="app-header">
     <div class="header-inner">
-      <p class="eyebrow">Public screening tool · Ghana</p>
-      <h1>Is your plot inside a waterway buffer?</h1>
-      <p class="subtitle">Drop a pin or search a location to check its distance from mapped rivers, streams, and water bodies.</p>
+      <div class="header-text">
+        <p class="eyebrow">Public screening tool · Ghana</p>
+        <h1>Is your plot inside a waterway buffer?</h1>
+        <p class="subtitle">Drop a pin or search a location to check its distance from mapped rivers, streams, and water bodies.</p>
+      </div>
+      
+      <div class="header-actions">
+        <div id="connection-status" class="connection-badge offline">
+          <span class="dot"></span>
+          <span class="status-text">Connecting...</span>
+        </div>
+        <button id="theme-toggle" class="theme-toggle-btn" type="button" aria-label="Toggle dark mode">
+          <svg class="sun-icon" viewBox="0 0 24 24" style="display:none;"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.01c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/></svg>
+          <svg class="moon-icon" viewBox="0 0 24 24"><path d="M12.3 22h-.1c-5.5 0-10-4.5-10-10 0-4.8 3.5-8.9 8.2-9.8.6-.1 1.2.3 1.3.9.1.6-.2 1.2-.8 1.5-2.8 1.4-4.7 4.3-4.7 7.5 0 4.4 3.6 8 8 8 3.1 0 5.9-1.8 7.2-4.5.3-.6.9-.9 1.5-.7.6.2 1 .7.9 1.3C22.6 18.6 18.2 22 12.3 22z"/></svg>
+          <span id="theme-btn-text">Dark Mode</span>
+        </button>
+      </div>
     </div>
   </header>
 
   <section class="buffer-legend" aria-label="Riparian buffer zones legend">
     <svg class="river-icon" viewBox="0 0 40 64" aria-hidden="true">
-      <path d="M20 0 C 8 10, 32 20, 20 32 C 8 44, 32 54, 20 64" stroke="#1B4B4A" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path d="M20 0 C 8 10, 32 20, 20 32 C 8 44, 32 54, 20 64" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/>
     </svg>
     <div class="zone zone-critical">
-      <span class="zone-range">0–10m</span>
+      <span class="zone-range">0–15m</span>
       <span class="zone-label">Critical</span>
     </div>
     <div class="zone zone-high">
-      <span class="zone-range">10–50m</span>
+      <span class="zone-range">15–50m</span>
       <span class="zone-label">High</span>
     </div>
     <div class="zone zone-moderate">
@@ -52,43 +66,77 @@
       <span class="zone-label">Low</span>
     </div>
   </section>
-  <p class="legend-caption">Approximate risk tiers based on Ghana's typical riparian buffer ranges — actual setbacks vary by watercourse and are set by the Water Resources Commission.</p>
+  <p class="legend-caption">Approximate buffer zone risk categories (actual legal buffer requirements vary by waterway category based on Water Resources Commission policies).</p>
 
-<main class="app-main">
+  <main class="app-main">
     <div class="map-panel">
       <div id="map"></div>
-      <p class="map-hint">Click anywhere on the map to check that spot, or enter a GhanaPost GPS address below.</p>
+      <p class="map-hint">Click anywhere on the map to screen that spot, or search for an address below.</p>
     </div>
 
     <aside class="result-panel" aria-live="polite">
-      <div class="search-box">
-        <label for="search-input" class="sr-only">Search a place in Ghana</label>
-        <input type="text" id="search-input" placeholder="Search a place or address…" />
-        <button id="search-btn" type="button">Search</button>
+      
+      <!-- Unified Search Container -->
+      <div class="search-container">
+        <div class="search-box">
+          <label for="search-input" class="sr-only">Search a place in Ghana</label>
+          <input type="text" id="search-input" placeholder="Search a town or place name…" />
+          <button id="search-btn" type="button">Search</button>
+        </div>
+
+        <div class="ghanapost-box">
+          <label for="ghanapost-input" class="sr-only">GhanaPost GPS Address (e.g., GS-0988-0986)</label>
+          <input type="text" id="ghanapost-input" placeholder="GhanaPost GPS (e.g. GS-0988-0986)…" />
+          <button id="ghanapost-btn" type="button">Check Plot</button>
+        </div>
+        <p class="ghanapost-help">GhanaPost GPS locates any 5m×5m plot in Ghana.</p>
       </div>
 
-      <div class="ghanapost-box">
-        <label for="ghanapost-input" class="sr-only">GhanaPost GPS Address (e.g., GS-0988-0986)</label>
-        <input type="text" id="ghanapost-input" placeholder="Enter GhanaPost GPS (e.g., GS-0988-0986)…" />
-        <button id="ghanapost-btn" type="button">Check Plot</button>
+      <!-- Tab Buttons Header -->
+      <div class="tabs-header">
+        <button id="tab-btn-risk" class="tab-btn active" type="button" onclick="switchTab('risk')">Risk Profile</button>
+        <button id="tab-btn-hydro" class="tab-btn" type="button" onclick="switchTab('hydro')">Hydrology</button>
+        <button id="tab-btn-history" class="tab-btn" type="button" onclick="switchTab('history')">History</button>
       </div>
-      <p class="ghanapost-help">GhanaPost addresses identify 5m×5m squares across Ghana — format: XX-XXX-XXXX</p>
 
-      <div id="result-content" class="result-content">
-        <p class="placeholder-text">Click a location on the map, or search above, to see its waterway risk reading.</p>
+      <!-- Tab Content Panels -->
+      <!-- Panel 1: Risk Card -->
+      <div id="tab-content-risk" class="tab-content active">
+        <div id="result-content" class="result-content">
+          <p class="placeholder-text">Click the map or run a search above to see waterway proximity screening results.</p>
+        </div>
+      </div>
+
+      <!-- Panel 2: Hydrology Details -->
+      <div id="tab-content-hydro" class="tab-content">
+        <div class="result-content">
+          <div id="hydro-list" class="waterway-list">
+            <p class="placeholder-text">No calculation history. Drop a pin to load nearby waterways list.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel 3: History List -->
+      <div id="tab-content-history" class="tab-content">
+        <div class="result-content">
+          <div id="history-list" class="history-list">
+            <p class="placeholder-text">Your search history is empty.</p>
+          </div>
+        </div>
       </div>
 
       <div class="disclaimer">
-        <strong>Screening tool only.</strong> Not official or legal advice. Verify with the Lands Commission, Water Resources Commission, or a licensed surveyor before any purchase or construction decision.
+        <strong>Screening tool only.</strong> It is not official legal verification. Always confirm setback rules with Lands Commission, WRC, EPA, or a licensed surveyor.
       </div>
     </aside>
   </main>
 
   <footer class="app-footer">
-    <p>Waterway data from OpenStreetMap contributors, via the Overpass API. GhanaPost GPS integration via sperixlabs.org.</p>
+    <p>Waterway data from OpenStreetMap, queried via Overpass API. GhanaPost GPS geocoding service via sperixlabs.org.</p>
   </footer>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
   <script src="js/riskCalculator.js"></script>
   <script src="js/app.js"></script>
 </body>

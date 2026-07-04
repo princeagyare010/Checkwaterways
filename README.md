@@ -52,3 +52,5 @@ These thresholds follow Ghana's general riparian buffer guidance and are approxi
 ## Disclaimer
 
 This is a screening tool only. It is not a substitute for official verification. Always confirm with the Ghana Lands Commission, Water Resources Commission (WRC), Environmental Protection Agency (EPA), or a licensed surveyor before any purchase or construction decision.
+
+built by Prince Agyare. @roddy6001 on x 

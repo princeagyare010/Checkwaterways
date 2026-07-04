@@ -72,9 +72,28 @@ const RiskCalculator = (function () {
   // of each segment. Good enough for screening; swap in Turf.js's
   // pointToLineDistance() for production-grade geometric accuracy.
   function distanceToWayGeometry(pointLat, pointLng, geometry) {
-    let minDistance = Infinity;
+    if (!geometry || geometry.length === 0) return Infinity;
 
-    if (!geometry || geometry.length === 0) return minDistance;
+    // Use Turf.js if available
+    if (typeof turf !== 'undefined' && turf.lineString && turf.point && turf.pointToLineDistance) {
+      try {
+        if (geometry.length >= 2) {
+          const coords = geometry.map(g => [g.lon, g.lat]);
+          const line = turf.lineString(coords);
+          const pt = turf.point([pointLng, pointLat]);
+          return turf.pointToLineDistance(pt, line, { units: 'meters' });
+        } else if (geometry.length === 1) {
+          const pt1 = turf.point([pointLng, pointLat]);
+          const pt2 = turf.point([geometry[0].lon, geometry[0].lat]);
+          return turf.distance(pt1, pt2, { units: 'meters' });
+        }
+      } catch (err) {
+        console.warn('Turf.js calculation failed, falling back to sampling method:', err);
+      }
+    }
+
+    // Fallback: sampling-based distance
+    let minDistance = Infinity;
 
     if (geometry.length === 1) {
       return haversineDistance(pointLat, pointLng, geometry[0].lat, geometry[0].lon);
@@ -96,27 +115,68 @@ const RiskCalculator = (function () {
     return minDistance;
   }
 
-  // Tiers follow Ghana's typical riparian buffer guidance (10-100m+,
-  // depending on watercourse size). See README for sources/caveats.
-  function scoreRisk(distanceMeters, waterwayName) {
+  function getWaterwayType(way) {
+    const tags = way.tags || {};
+    const waterway = tags.waterway || '';
+    const natural = tags.natural || '';
+
+    if (waterway === 'river' || waterway === 'riverbank' || natural === 'water') {
+      return 'river';
+    } else if (waterway === 'stream' || waterway === 'canal') {
+      return 'stream';
+    } else if (waterway === 'drain' || waterway === 'ditch') {
+      return 'drain';
+    }
+    return 'other';
+  }
+
+  const BUFFER_POLICIES = {
+    river: {
+      critical: 15,
+      high: 50,
+      moderate: 100,
+      name: 'Major Waterway (River/Lake)'
+    },
+    stream: {
+      critical: 10,
+      high: 30,
+      moderate: 50,
+      name: 'Medium Waterway (Stream/Canal)'
+    },
+    drain: {
+      critical: 5,
+      high: 10,
+      moderate: 20,
+      name: 'Minor Waterway (Drain/Ditch)'
+    },
+    other: {
+      critical: 10,
+      high: 50,
+      moderate: 100,
+      name: 'Waterway'
+    }
+  };
+
+  function scoreRisk(distanceMeters, waterwayName, type) {
+    const policy = BUFFER_POLICIES[type] || BUFFER_POLICIES.other;
     let risk, colorClass, message;
 
-    if (distanceMeters <= 10) {
+    if (distanceMeters <= policy.critical) {
       risk = 'CRITICAL';
       colorClass = 'risk-critical';
-      message = `Within ${Math.round(distanceMeters)}m of ${waterwayName}. This is likely inside the legal riparian buffer zone — high risk of encroachment findings or a future demolition order.`;
-    } else if (distanceMeters <= 50) {
+      message = `Within ${Math.round(distanceMeters)}m of ${waterwayName} (${policy.name}). This is inside the legal buffer zone (setback: ${policy.critical}m) — high risk of encroachment or demolition order.`;
+    } else if (distanceMeters <= policy.high) {
       risk = 'HIGH';
       colorClass = 'risk-high';
-      message = `${Math.round(distanceMeters)}m from ${waterwayName}. This falls within commonly enforced buffer zones. Verify the exact setback with the Water Resources Commission before proceeding.`;
-    } else if (distanceMeters <= 100) {
+      message = `${Math.round(distanceMeters)}m from ${waterwayName} (${policy.name}). This falls within high-risk buffer zone (setback: ${policy.high}m). Verify setbacks with WRC.`;
+    } else if (distanceMeters <= policy.moderate) {
       risk = 'MODERATE';
       colorClass = 'risk-moderate';
-      message = `${Math.round(distanceMeters)}m from ${waterwayName}. This may fall within the buffer for larger rivers. Recommend official verification before purchase or construction.`;
+      message = `${Math.round(distanceMeters)}m from ${waterwayName} (${policy.name}). This is inside moderate-risk zone (setback: ${policy.moderate}m). Verify before purchase.`;
     } else {
       risk = 'LOW';
       colorClass = 'risk-low';
-      message = `${Math.round(distanceMeters)}m from the nearest mapped waterway (${waterwayName}). Outside typical buffer zones based on available data.`;
+      message = `${Math.round(distanceMeters)}m from the nearest mapped waterway (${waterwayName}, ${policy.name}). Outside typical buffer zones.`;
     }
 
     return { risk, colorClass, message };
@@ -138,35 +198,59 @@ const RiskCalculator = (function () {
         colorClass: 'risk-low',
         nearestDistance: null,
         nearestWaterwayName: null,
+        nearestWaterwayType: null,
         elevation: elevation,
         message: 'No mapped waterways found within 500m of this location. Low apparent risk based on available OpenStreetMap data' + floodNote + ' — note that small seasonal streams or drainage channels are not always fully mapped.',
-        waterwaysFound: 0
+        waterwaysFound: 0,
+        waterways: []
       };
     }
 
     let nearestDistance = Infinity;
     let nearestWaterwayName = 'an unnamed waterway';
+    let nearestWaterwayType = 'other';
+    
+    const allWaterways = [];
 
     waterways.forEach(function (way) {
       if (way.geometry) {
         const dist = distanceToWayGeometry(lat, lng, way.geometry);
-        if (dist < nearestDistance) {
-          nearestDistance = dist;
-          nearestWaterwayName = (way.tags && (way.tags.name || way.tags.waterway)) || 'an unnamed waterway';
+        if (dist !== Infinity) {
+          const name = (way.tags && (way.tags.name || way.tags.waterway)) || 'an unnamed waterway';
+          const type = getWaterwayType(way);
+          
+          allWaterways.push({
+            id: way.id,
+            name: name,
+            type: type,
+            distance: Math.round(dist),
+            tags: way.tags || {}
+          });
+
+          if (dist < nearestDistance) {
+            nearestDistance = dist;
+            nearestWaterwayName = name;
+            nearestWaterwayType = type;
+          }
         }
       }
     });
 
-    const scored = scoreRisk(nearestDistance, nearestWaterwayName);
+    // Sort by distance
+    allWaterways.sort((a, b) => a.distance - b.distance);
+
+    const scored = scoreRisk(nearestDistance, nearestWaterwayName, nearestWaterwayType);
 
     return {
       risk: scored.risk,
       colorClass: scored.colorClass,
       nearestDistance: Math.round(nearestDistance),
       nearestWaterwayName: nearestWaterwayName,
+      nearestWaterwayType: nearestWaterwayType,
       elevation: elevation,
       message: scored.message,
-      waterwaysFound: waterways.length
+      waterwaysFound: allWaterways.length,
+      waterways: allWaterways
     };
   }
 
